@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+import sys
+import subprocess
+import os
+from getpass import getpass
+
+
+def decrypt(path, password):
+    pr, pw = os.pipe()
+    os.set_inheritable(pr, True)
+    fd_str = f'fd:{pr}'
+    proc = subprocess.Popen(
+        ['openssl', 'enc', '-aes-256-cbc', '-d', '-pass', fd_str, '-in', path],
+        stdout=subprocess.PIPE,
+        pass_fds=[pr]
+    )
+    os.close(pr)
+    os.write(pw, password)
+    os.close(pw)
+    stdout, stderr = proc.communicate()
+    rc = proc.wait()
+    if rc != 0:
+        raise Exception(f'rc {rc} from openssl child; stderr={repr(stderr)}')
+    return stdout.decode('ascii')
+
+
+def clean_val(value):
+    return value.split('\n')[0].rstrip().replace('\0', '\n')
+
+
+if __name__ == '__main__':
+    argv = sys.argv[1:]
+
+    if len(argv) < 2 or (argv[0].startswith('--password-via-fd=') and len(argv) < 3):
+        print(f'''
+Usage: {sys.argv[0]} [--password-via-fd=N] DIR CMD [ARG] ...
+
+Run CMD with environment modified according to files in DIR
+
+
+    If DIR contains a file named KEY.aes it is decrypted and proceeds as if the
+    file was named KEY. Decryption via: openssl enc -d -aes-256-cbc -salt
+
+    If DIR contains a file named KEY whose first line is VAL, envdir removes an
+    environment variable named KEY if one exists, and then adds an environment
+    variable named KEY with value VAL. The name KEY must not contain =. Spaces
+    and tabs at the end of VAL are removed. Nulls in VAL are changed to
+    newlines in the environment variable.
+
+    If the file KEY is completely empty (0 bytes long), envdir removes an
+    environment variable named KEY if one exists, without adding a new
+    variable.
+
+    Exits 111 if it has trouble reading DIR, if it runs out of memory for
+    environment variables, or if it cannot run child. Otherwise its exit code is
+    the same as that of child.
+
+
+Options:
+    --password-via-fd=N     fd N is read and closed; password is the contents
+        '''.strip())
+        sys.exit(1)
+
+    if argv[0].startswith('--password-via-fd='):
+        pw_fd = int(argv[0].split('=', 1)[1])
+        argv = argv[1:]
+        password_file = os.fdopen(pw_fd, 'rb')
+        password = password_file.read()
+        password_file.close()
+    else:
+        password = getpass().encode('ascii')
+
+    envdir = argv.pop(0)
+
+    update_env = os.environ.copy()
+    try:
+        keys = os.listdir(envdir)
+    except:
+        sys.exit(111)
+
+    for key in keys:
+        filepath = os.path.join(envdir, key)
+        if '=' in key:
+            pass
+        elif key.endswith('.aes'):
+            val = decrypt(filepath, password)
+            update_env[key[:-4]] = clean_val(val)
+        else:
+            with open(filepath, 'r') as f:
+                data = f.read()
+                if len(data) == 0:
+                    try:
+                        del update_env[key]
+                    except KeyError:
+                        pass
+                else:
+                    update_env[key] = clean_val(data)
+
+    try:
+        os.execvpe(argv[0], argv, update_env)
+    except:
+        sys.exit(111)
