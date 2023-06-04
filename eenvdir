@@ -10,7 +10,7 @@ def decrypt(path, password):
     os.set_inheritable(pr, True)
     fd_str = f'fd:{pr}'
     proc = subprocess.Popen(
-        ['openssl', 'enc', '-aes-256-cbc', '-d', '-pass', fd_str, '-in', path],
+        ['openssl', 'enc', '-aes-256-cbc', '-pbkdf2', '-salt', '-d', '-pass', fd_str, '-in', path],
         stdout=subprocess.PIPE,
         pass_fds=[pr]
     )
@@ -39,7 +39,7 @@ Run CMD with environment modified according to files in DIR
 
 
     If DIR contains a file named KEY.aes it is decrypted and proceeds as if the
-    file was named KEY. Decryption via: openssl enc -d -aes-256-cbc -salt
+    file was named KEY. Decryption via: openssl enc -d -aes-256-cbc -pbkdf2 -salt
 
     If DIR contains a file named KEY whose first line is VAL, envdir removes an
     environment variable named KEY if one exists, and then adds an environment

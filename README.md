@@ -7,7 +7,7 @@ Like [envdir](http://cr.yp.to/daemontools/envdir.html), but with on-the-fly opt-
 ## Requirements
 
 * python3 (at least 3.6)
-* openssl (supporting `enc -d -aes-256-cbc`)
+* openssl (supporting `enc -d -aes-256-cbc -pbkdf2 -salt`)
 
 
 ## Installation
@@ -15,6 +15,8 @@ Like [envdir](http://cr.yp.to/daemontools/envdir.html), but with on-the-fly opt-
 Copy/symlink eenvdir to somewhere on your path.
 
 Or just `ln -s "$(pwd)/eenvdir" /usr/local/bin/eenvdir`
+
+A helper program `encrypt.py` can be used for convenience to encrypt files.
 
 
 ## Usage
@@ -27,7 +29,7 @@ Run CMD with environment modified according to files in DIR
 
 
     If DIR contains a file named KEY.aes it is decrypted and proceeds as if the
-    file was named KEY. Decryption via: openssl enc -d -aes-256-cbc -salt
+    file was named KEY. Decryption via: openssl enc -d -aes-256-cbc -pbkdf2 -salt
 
     If DIR contains a file named KEY whose first line is VAL, envdir removes an
     environment variable named KEY if one exists, and then adds an environment
@@ -47,3 +49,8 @@ Run CMD with environment modified according to files in DIR
 Options:
     --password-via-fd=N     fd N is read and closed; password is the contents
 ```
+
+## Releases 
+
+* **2023-06-04**: added `-pbkdf2` and `-salt` options, as well as a `encrypt.py` helper
+* **2018-04-12**: released to the public
